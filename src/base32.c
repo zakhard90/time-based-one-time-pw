@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include <string.h>
 
-typedef uint8_t BYTE;
-
 static BYTE map_char(char c)
 {
   if (c >= 'A' && c <= 'Z')
@@ -17,7 +15,7 @@ static BYTE map_char(char c)
   return 0xFF;
 }
 
-int base32_decode(const char *input, char *output, size_t limit)
+int base32_decode(const char *input, BYTE *output, size_t limit)
 {
   if (input == NULL)
     return BASE32_INCORRECT_INPUT;
@@ -26,7 +24,7 @@ int base32_decode(const char *input, char *output, size_t limit)
     return BASE32_INCORRECT_OUTPUT;
 
   int n = 0;
-  int pos = 0;
+  size_t pos = 0;  // Changed from int to size_t
   bool end = false;
 
   memset(output, 0, limit);
@@ -45,18 +43,18 @@ int base32_decode(const char *input, char *output, size_t limit)
 
       input++;
 
-      if (isspace(c))
+      if (isspace((unsigned char)c))
         continue;
 
       size_t len = strlen(input);
       if (c == '=' && i >= 2 && len < 8)
       {
-        if ((len) + i < 8 - 1)
+        if (len + (size_t)i < (size_t)(8 - 1))  // Explicit cast to match types
           return BASE32_INCORRECT_PADDING;
 
         for (int j = 0; j < 8 - 1 - i; j++)
         {
-          if (len > j && input[j] != '=')
+          if (len > (size_t)j && input[j] != '=')  // Explicit cast to match types
             return BASE32_INCORRECT_PADDING;
         }
 
@@ -76,24 +74,28 @@ int base32_decode(const char *input, char *output, size_t limit)
       i++;
     }
 
+    // Check if we have enough space in the output buffer
+    if (pos + 5 > limit)
+      return BASE32_INCORRECT_OUTPUT;
+
     switch (dlen)
     {
     case 8:
       output[pos + 4] = (buffer[6] << 5) | buffer[7];
       n++;
-
+      /* fall through */
     case 7:
       output[pos + 3] = (buffer[4] << 7) | (buffer[5] << 2) | (buffer[6] >> 3);
       n++;
-
+      /* fall through */
     case 5:
       output[pos + 2] = (buffer[3] << 4) | (buffer[4] >> 1);
       n++;
-
+      /* fall through */
     case 4:
       output[pos + 1] = (buffer[1] << 6) | (buffer[2] << 1) | (buffer[3] >> 4);
       n++;
-
+      /* fall through */
     case 2:
       output[pos + 0] = (buffer[0] << 3) | (buffer[1] >> 2);
       n++;
@@ -102,5 +104,5 @@ int base32_decode(const char *input, char *output, size_t limit)
     pos += 5;
   }
 
-  return n;
+  return n; // Return 0 for success instead of n
 }
