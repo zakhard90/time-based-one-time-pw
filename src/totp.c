@@ -1,21 +1,40 @@
 #include "base32.h"
-
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+
+static time_t unix_time()
+{
+  struct timespec time;
+  clock_gettime(CLOCK_REALTIME, &time);
+  return time.tv_sec;
+}
+
+static void encode_time_step(uint64_t step, BYTE *destination)
+{
+  for (int i = 0; i < 8; i++)
+  {
+    destination[i] = (step >> (7 - i) * 8) & 0xFF;
+  }
+}
 
 int main(void)
 {
   // TODOs
   // [x] Implement base32 decoding
-  // [ ] Implement get unix timestamp
-  // [ ] Encode time
-  // [ ] Generate HMAC digest
+  // [x] Implement get unix timestamp
+  // [x] Encode time
+  // [x] Generate HMAC digest
+  // [ ] Calculate TOTP
+  // [ ] Read secret from an .env file
   char *secret = "NBSWU43LNJUGI2TTMRQXGZDEONQXGZA=";
   unsigned int bytes = 20;
-  size_t limit = sizeof(uint8_t) * bytes;
-  BYTE *output = malloc(limit);
+  size_t limit = sizeof(BYTE) * bytes;
+  BYTE output_buffer[limit];
 
-  int res = base32_decode(secret, output, limit);
+  int res = base32_decode(secret, output_buffer, limit);
 
   if (res < 0)
     return res;
@@ -23,10 +42,27 @@ int main(void)
   printf("%s decoded is: 0x", secret);
 
   for (unsigned int i = 0; i < bytes; i++)
-    printf("%02x", output[i]);
+    printf("%02x ", output_buffer[i]);
 
   printf("\n");
 
-  free(output);
+  uint64_t time_step = unix_time() / 30;
+
+  BYTE time_buffer[8];
+  encode_time_step(time_step, time_buffer);
+  printf("%ld\n", time_step);
+
+  for (unsigned int i = 0; i < 8; i++)
+    printf("%02x ", time_buffer[i]);
+  printf("\n");
+
+  BYTE digest_buffer[20];
+  unsigned int length;
+  HMAC(EVP_sha1(), output_buffer, 20, time_buffer, 8, digest_buffer, &length);
+
+  for (unsigned int i = 0; i < 20; i++)
+    printf("%02x ", digest_buffer[i]);
+  printf("\n");
+  
   return 0;
 }
