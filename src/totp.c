@@ -27,9 +27,9 @@ int main(void)
   // [x] Implement get unix timestamp
   // [x] Encode time
   // [x] Generate HMAC digest
-  // [ ] Calculate TOTP
+  // [x] Calculate TOTP
   // [ ] Read secret from an .env file
-  char *secret = "NBSWU43LNJUGI2TTMRQXGZDEONQXGZA=";
+  char *secret = "J5XW6Y3LORUGS5DPNVZHK3TF";
   unsigned int bytes = 20;
   size_t limit = sizeof(BYTE) * bytes;
   BYTE output_buffer[limit];
@@ -63,6 +63,15 @@ int main(void)
   for (unsigned int i = 0; i < 20; i++)
     printf("%02x ", digest_buffer[i]);
   printf("\n");
-  
+
+  int offset = digest_buffer[19] & 0xF;
+  uint32_t binary = (digest_buffer[offset + 0] & 0x7f) << 24 |
+                    digest_buffer[offset + 1] << 16 |
+                    digest_buffer[offset + 2] << 8 |
+                    digest_buffer[offset + 3];
+
+  int otp = binary % 1000000;
+
+  printf("%06d\n", otp);
   return 0;
 }
