@@ -2,8 +2,59 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+
+#define L_BYTES 20
+#define S_BYTES 8
+#define T_DURATION 30
+#define ENV_PATH ".env"
+#define ENV_KEY "SECRET"
+
+static time_t unix_time();
+static void encode_time_step(uint64_t step, BYTE *destination);
+static int env_value(const char *env_path, const char *env_key, char *buffer);
+
+int main(void)
+{
+  size_t limit = sizeof(BYTE) * L_BYTES;
+  BYTE output_buffer[limit];
+  char *secret_buffer = malloc(sizeof(char) * 40);
+  char *env_path = ENV_PATH;
+  char *env_key = ENV_KEY;
+
+  int read = env_value(env_path, env_key, secret_buffer);
+
+  if (read < 0)
+    return read;
+
+  int res = base32_decode(secret_buffer, output_buffer, limit);
+
+  if (res < 0)
+    return res;
+
+  uint64_t time_step = unix_time() / T_DURATION;
+
+  BYTE time_buffer[S_BYTES];
+  encode_time_step(time_step, time_buffer);
+
+  BYTE digest_buffer[L_BYTES];
+  unsigned int length;
+  HMAC(EVP_sha1(), output_buffer, L_BYTES, time_buffer, S_BYTES, digest_buffer, &length);
+
+  int offset = digest_buffer[L_BYTES - 1] & 0xF;
+  uint32_t binary = (digest_buffer[offset + 0] & 0x7f) << 24 |
+                    digest_buffer[offset + 1] << 16 |
+                    digest_buffer[offset + 2] << 8 |
+                    digest_buffer[offset + 3];
+
+  int otp = binary % 1000000;
+
+  printf("Your OTP is: %06d\n", otp);
+  free(secret_buffer);
+  return 0;
+}
 
 static time_t unix_time()
 {
@@ -14,64 +65,52 @@ static time_t unix_time()
 
 static void encode_time_step(uint64_t step, BYTE *destination)
 {
-  for (int i = 0; i < 8; i++)
+  for (int i = 0; i < S_BYTES; i++)
   {
-    destination[i] = (step >> (7 - i) * 8) & 0xFF;
+    destination[i] = (step >> (7 - i) * S_BYTES) & 0xFF;
   }
 }
 
-int main(void)
+static int env_value(const char *env_path, const char *env_key, char *buffer)
 {
-  // TODOs
-  // [x] Implement base32 decoding
-  // [x] Implement get unix timestamp
-  // [x] Encode time
-  // [x] Generate HMAC digest
-  // [x] Calculate TOTP
-  // [ ] Read secret from an .env file
-  char *secret = "J5XW6Y3LORUGS5DPNVZHK3TF";
-  unsigned int bytes = 20;
-  size_t limit = sizeof(BYTE) * bytes;
-  BYTE output_buffer[limit];
+  FILE *file = fopen(env_path, "r");
+  if (file == NULL)
+  {
+    return -1;
+  }
 
-  int res = base32_decode(secret, output_buffer, limit);
+  char line[512];
 
-  if (res < 0)
-    return res;
+  while (fgets(line, sizeof(line), file))
+  {
+    int p = 0;
+    int v = 0;
+    while (line[p] != '=')
+    {
+      if (line[p] != env_key[p])
+      {
+        p = 0;
+        break;
+      }
+      p++;
+    }
+    p++;
 
-  printf("%s decoded is: 0x", secret);
+    while (line[p] != '\n')
+    {
+      // Allow CRLF
+      if (line[p] == '\r')
+      {
+        p++;
+        continue;
+      }
 
-  for (unsigned int i = 0; i < bytes; i++)
-    printf("%02x ", output_buffer[i]);
+      buffer[v++] = line[p++];
+    }
 
-  printf("\n");
+    break;
+  }
 
-  uint64_t time_step = unix_time() / 30;
-
-  BYTE time_buffer[8];
-  encode_time_step(time_step, time_buffer);
-  printf("%ld\n", time_step);
-
-  for (unsigned int i = 0; i < 8; i++)
-    printf("%02x ", time_buffer[i]);
-  printf("\n");
-
-  BYTE digest_buffer[20];
-  unsigned int length;
-  HMAC(EVP_sha1(), output_buffer, 20, time_buffer, 8, digest_buffer, &length);
-
-  for (unsigned int i = 0; i < 20; i++)
-    printf("%02x ", digest_buffer[i]);
-  printf("\n");
-
-  int offset = digest_buffer[19] & 0xF;
-  uint32_t binary = (digest_buffer[offset + 0] & 0x7f) << 24 |
-                    digest_buffer[offset + 1] << 16 |
-                    digest_buffer[offset + 2] << 8 |
-                    digest_buffer[offset + 3];
-
-  int otp = binary % 1000000;
-
-  printf("%06d\n", otp);
+  fclose(file);
   return 0;
 }
