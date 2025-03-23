@@ -24,7 +24,7 @@ int base32_decode(const char *input, BYTE *output, size_t limit)
     return BASE32_INCORRECT_OUTPUT;
 
   int n = 0;
-  size_t pos = 0;  // Changed from int to size_t
+  size_t pos = 0;
   bool end = false;
 
   memset(output, 0, limit);
@@ -49,12 +49,12 @@ int base32_decode(const char *input, BYTE *output, size_t limit)
       size_t len = strlen(input);
       if (c == '=' && i >= 2 && len < 8)
       {
-        if (len + (size_t)i < (size_t)(8 - 1))  // Explicit cast to match types
+        if (len + (size_t)i < (size_t)(8 - 1))
           return BASE32_INCORRECT_PADDING;
 
         for (int j = 0; j < 8 - 1 - i; j++)
         {
-          if (len > (size_t)j && input[j] != '=')  // Explicit cast to match types
+          if (len > (size_t)j && input[j] != '=')
             return BASE32_INCORRECT_PADDING;
         }
 
@@ -74,7 +74,6 @@ int base32_decode(const char *input, BYTE *output, size_t limit)
       i++;
     }
 
-    // Check if we have enough space in the output buffer
     if (pos + 5 > limit)
       return BASE32_INCORRECT_OUTPUT;
 
@@ -104,5 +103,5 @@ int base32_decode(const char *input, BYTE *output, size_t limit)
     pos += 5;
   }
 
-  return n; // Return 0 for success instead of n
+  return n;
 }
